@@ -1,5 +1,5 @@
 .idea/
 .gocache/
 .gopath/
-app
+/app
 coverage.out
