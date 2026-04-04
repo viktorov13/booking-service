@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Room Booking Service (Test Task)
+  title: Room Booking Service
   description: Сервис бронирования переговорок
   version: "1.0.0"
 
