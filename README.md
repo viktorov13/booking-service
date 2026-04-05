@@ -24,6 +24,22 @@ docker-compose up --build
 go test ./... -cover
 ```
 
+## Makefile
+
+- `make up` - поднять проект через Docker Compose
+- `make down` - остановить проект и удалить тома
+- `make build` - собрать приложение
+- `make test` - запустить тесты
+- `make seed` - наполнить сервис тестовыми данными через HTTP API
+- `make swagger` - сгенерировать Swagger-документацию из аннотаций
+- `make lint` - запустить `golangci-lint`
+
+## Swagger
+
+- Swagger UI доступен по адресу `http://localhost:8080/swagger/index.html`
+- Документация генерируется из аннотаций в коде командой `make swagger`
+- Сгенерированные файлы лежат в каталоге `docs`
+
 ## Структура проекта
 
 - `cmd/app` - точка входа и сборка зависимостей приложения.

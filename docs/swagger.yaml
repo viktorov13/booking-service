@@ -1,0 +1,662 @@
+basePath: /
+definitions:
+  domain.Booking:
+    properties:
+      conferenceLink:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: string
+      slotId:
+        type: string
+      status:
+        $ref: '#/definitions/domain.BookingStatus'
+      userId:
+        type: string
+    type: object
+  domain.BookingStatus:
+    enum:
+    - active
+    - cancelled
+    type: string
+    x-enum-varnames:
+    - BookingStatusActive
+    - BookingStatusCancelled
+  domain.Pagination:
+    properties:
+      page:
+        type: integer
+      pageSize:
+        type: integer
+      total:
+        type: integer
+    type: object
+  domain.Role:
+    enum:
+    - admin
+    - user
+    type: string
+    x-enum-varnames:
+    - RoleAdmin
+    - RoleUser
+  domain.Room:
+    properties:
+      capacity:
+        type: integer
+      createdAt:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  domain.Schedule:
+    properties:
+      daysOfWeek:
+        items:
+          type: integer
+        type: array
+      endTime:
+        type: string
+      id:
+        type: string
+      roomId:
+        type: string
+      startTime:
+        type: string
+    type: object
+  domain.Slot:
+    properties:
+      end:
+        type: string
+      id:
+        type: string
+      roomId:
+        type: string
+      start:
+        type: string
+    type: object
+  domain.User:
+    properties:
+      createdAt:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      role:
+        $ref: '#/definitions/domain.Role'
+    type: object
+  httpapi.bookingResponse:
+    properties:
+      booking:
+        $ref: '#/definitions/domain.Booking'
+    type: object
+  httpapi.bookingsListResponse:
+    properties:
+      bookings:
+        items:
+          $ref: '#/definitions/domain.Booking'
+        type: array
+      pagination:
+        $ref: '#/definitions/domain.Pagination'
+    type: object
+  httpapi.createBookingRequest:
+    properties:
+      slotId:
+        example: 11111111-1111-1111-1111-111111111111
+        type: string
+    type: object
+  httpapi.createRoomRequest:
+    properties:
+      capacity:
+        example: 4
+        type: integer
+      description:
+        example: Quiet room
+        type: string
+      name:
+        example: Room A
+        type: string
+    type: object
+  httpapi.createScheduleRequest:
+    properties:
+      daysOfWeek:
+        example:
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        items:
+          type: integer
+        type: array
+      endTime:
+        example: "18:00"
+        type: string
+      roomId:
+        example: 11111111-1111-1111-1111-111111111111
+        type: string
+      startTime:
+        example: "09:00"
+        type: string
+    type: object
+  httpapi.dummyLoginRequest:
+    properties:
+      role:
+        enum:
+        - admin
+        - user
+        example: admin
+        type: string
+    type: object
+  httpapi.errorBody:
+    properties:
+      code:
+        example: INVALID_REQUEST
+        type: string
+      message:
+        example: invalid request
+        type: string
+    type: object
+  httpapi.errorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/httpapi.errorBody'
+    type: object
+  httpapi.infoResponse:
+    properties:
+      status:
+        example: ok
+        type: string
+    type: object
+  httpapi.loginRequest:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      password:
+        example: secret-password
+        type: string
+    type: object
+  httpapi.myBookingsResponse:
+    properties:
+      bookings:
+        items:
+          $ref: '#/definitions/domain.Booking'
+        type: array
+    type: object
+  httpapi.registerRequest:
+    properties:
+      email:
+        example: user@example.com
+        type: string
+      password:
+        example: secret-password
+        type: string
+      role:
+        enum:
+        - admin
+        - user
+        example: user
+        type: string
+    type: object
+  httpapi.roomResponse:
+    properties:
+      room:
+        $ref: '#/definitions/domain.Room'
+    type: object
+  httpapi.roomsResponse:
+    properties:
+      rooms:
+        items:
+          $ref: '#/definitions/domain.Room'
+        type: array
+    type: object
+  httpapi.scheduleResponse:
+    properties:
+      schedule:
+        $ref: '#/definitions/domain.Schedule'
+    type: object
+  httpapi.slotsResponse:
+    properties:
+      slots:
+        items:
+          $ref: '#/definitions/domain.Slot'
+        type: array
+    type: object
+  httpapi.tokenResponse:
+    properties:
+      token:
+        type: string
+    type: object
+  httpapi.userResponse:
+    properties:
+      user:
+        $ref: '#/definitions/domain.User'
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: API for booking meeting rooms.
+  title: Room Booking Service API
+  version: "1.0"
+paths:
+  /_info:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpapi.infoResponse'
+      summary: Health check
+      tags:
+      - Service
+  /bookings/{bookingId}/cancel:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Booking ID
+        in: path
+        name: bookingId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpapi.bookingResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Cancel booking
+      tags:
+      - Bookings
+  /bookings/create:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Create booking request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httpapi.createBookingRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/httpapi.bookingResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create booking
+      tags:
+      - Bookings
+  /bookings/list:
+    get:
+      parameters:
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        name: pageSize
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpapi.bookingsListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: List all bookings
+      tags:
+      - Bookings
+  /bookings/my:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpapi.myBookingsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: List current user bookings
+      tags:
+      - Bookings
+  /dummyLogin:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Dummy login request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httpapi.dummyLoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpapi.tokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+      summary: Get dummy JWT token
+      tags:
+      - Auth
+  /login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Login request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httpapi.loginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpapi.tokenResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+      summary: Login by email and password
+      tags:
+      - Auth
+  /register:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Register request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httpapi.registerRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/httpapi.userResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+      summary: Register user
+      tags:
+      - Auth
+  /rooms/{roomId}/schedule/create:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Room ID
+        in: path
+        name: roomId
+        required: true
+        type: string
+      - description: Create schedule request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httpapi.createScheduleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/httpapi.scheduleResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create room schedule
+      tags:
+      - Schedules
+  /rooms/{roomId}/slots/list:
+    get:
+      parameters:
+      - description: Room ID
+        in: path
+        name: roomId
+        required: true
+        type: string
+      - description: Date in YYYY-MM-DD format
+        in: query
+        name: date
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpapi.slotsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: List available slots
+      tags:
+      - Slots
+  /rooms/create:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Create room request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/httpapi.createRoomRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/httpapi.roomResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create room
+      tags:
+      - Rooms
+  /rooms/list:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpapi.roomsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.errorResponse'
+      security:
+      - BearerAuth: []
+      summary: List rooms
+      tags:
+      - Rooms
+schemes:
+- http
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

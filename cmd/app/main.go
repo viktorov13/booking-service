@@ -1,3 +1,5 @@
+//go:generate go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g cmd/app/main.go -o docs
+
 package main
 
 import (
@@ -11,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	docs "room-booking-service/docs"
 	"room-booking-service/internal/auth"
 	"room-booking-service/internal/config"
 	"room-booking-service/internal/db/postgres"
@@ -20,8 +23,19 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
+// @title Room Booking Service API
+// @version 1.0
+// @description API for booking meeting rooms.
+// @host localhost:8080
+// @BasePath /
+// @schemes http
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
 func main() {
 	cfg := config.Load()
+	docs.SwaggerInfo.Host = "localhost:" + cfg.Port
+	docs.SwaggerInfo.BasePath = "/"
 
 	db, err := sql.Open("pgx", cfg.DatabaseURL)
 	if err != nil {

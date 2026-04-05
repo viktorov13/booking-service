@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
 
 type tokenParser interface {
@@ -35,6 +36,7 @@ func NewHandler(service *service.Service, tokens tokenParser) http.Handler {
 	router := chi.NewRouter()
 	router.Use(middleware.Recoverer)
 
+	router.Get("/swagger/*", httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")))
 	router.Get("/_info", handler.handleInfo)
 	router.Post("/register", handler.handleRegister)
 	router.Post("/login", handler.handleLogin)
@@ -55,29 +57,26 @@ func NewHandler(service *service.Service, tokens tokenParser) http.Handler {
 	return router
 }
 
+// handleInfo godoc
+// @Summary Health check
+// @Tags Service
+// @Produce json
+// @Success 200 {object} infoResponse
+// @Router /_info [get]
 func (h *Handler) handleInfo(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-func (h *Handler) handleDummyLogin(w http.ResponseWriter, r *http.Request) {
-	var request struct {
-		Role string `json:"role"`
-	}
-
-	if err := decodeJSON(r, &request); err != nil {
-		writeError(w, err)
-		return
-	}
-
-	token, err := h.service.DummyLogin(r.Context(), request.Role)
-	if err != nil {
-		writeError(w, err)
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]string{"token": token})
-}
-
+// handleRegister godoc
+// @Summary Register user
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body registerRequest true "Register request"
+// @Success 201 {object} userResponse
+// @Failure 400 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Router /register [post]
 func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Email    string `json:"email"`
@@ -99,6 +98,16 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{"user": user})
 }
 
+// handleLogin godoc
+// @Summary Login by email and password
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body loginRequest true "Login request"
+// @Success 200 {object} tokenResponse
+// @Failure 401 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Router /login [post]
 func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Email    string `json:"email"`
@@ -119,6 +128,44 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"token": token})
 }
 
+// handleDummyLogin godoc
+// @Summary Get dummy JWT token
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body dummyLoginRequest true "Dummy login request"
+// @Success 200 {object} tokenResponse
+// @Failure 400 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Router /dummyLogin [post]
+func (h *Handler) handleDummyLogin(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		Role string `json:"role"`
+	}
+
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, err)
+		return
+	}
+
+	token, err := h.service.DummyLogin(r.Context(), request.Role)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"token": token})
+}
+
+// handleListRooms godoc
+// @Summary List rooms
+// @Tags Rooms
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} roomsResponse
+// @Failure 401 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Router /rooms/list [get]
 func (h *Handler) handleListRooms(w http.ResponseWriter, r *http.Request) {
 	rooms, err := h.service.ListRooms(r.Context(), actorFromContext(r.Context()))
 	if err != nil {
@@ -129,6 +176,19 @@ func (h *Handler) handleListRooms(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"rooms": rooms})
 }
 
+// handleCreateRoom godoc
+// @Summary Create room
+// @Tags Rooms
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body createRoomRequest true "Create room request"
+// @Success 201 {object} roomResponse
+// @Failure 400 {object} errorResponse
+// @Failure 401 {object} errorResponse
+// @Failure 403 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Router /rooms/create [post]
 func (h *Handler) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Name        string  `json:"name"`
@@ -150,6 +210,22 @@ func (h *Handler) handleCreateRoom(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{"room": room})
 }
 
+// handleCreateSchedule godoc
+// @Summary Create room schedule
+// @Tags Schedules
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param roomId path string true "Room ID"
+// @Param request body createScheduleRequest true "Create schedule request"
+// @Success 201 {object} scheduleResponse
+// @Failure 400 {object} errorResponse
+// @Failure 401 {object} errorResponse
+// @Failure 403 {object} errorResponse
+// @Failure 404 {object} errorResponse
+// @Failure 409 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Router /rooms/{roomId}/schedule/create [post]
 func (h *Handler) handleCreateSchedule(w http.ResponseWriter, r *http.Request) {
 	roomID, err := uuid.Parse(chi.URLParam(r, "roomId"))
 	if err != nil {
@@ -190,6 +266,19 @@ func (h *Handler) handleCreateSchedule(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{"schedule": schedule})
 }
 
+// handleListSlots godoc
+// @Summary List available slots
+// @Tags Slots
+// @Produce json
+// @Security BearerAuth
+// @Param roomId path string true "Room ID"
+// @Param date query string true "Date in YYYY-MM-DD format"
+// @Success 200 {object} slotsResponse
+// @Failure 400 {object} errorResponse
+// @Failure 401 {object} errorResponse
+// @Failure 404 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Router /rooms/{roomId}/slots/list [get]
 func (h *Handler) handleListSlots(w http.ResponseWriter, r *http.Request) {
 	roomID, err := uuid.Parse(chi.URLParam(r, "roomId"))
 	if err != nil {
@@ -212,6 +301,21 @@ func (h *Handler) handleListSlots(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"slots": slots})
 }
 
+// handleCreateBooking godoc
+// @Summary Create booking
+// @Tags Bookings
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body createBookingRequest true "Create booking request"
+// @Success 201 {object} bookingResponse
+// @Failure 400 {object} errorResponse
+// @Failure 401 {object} errorResponse
+// @Failure 403 {object} errorResponse
+// @Failure 404 {object} errorResponse
+// @Failure 409 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Router /bookings/create [post]
 func (h *Handler) handleCreateBooking(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		SlotID               string `json:"slotId"`
@@ -238,6 +342,19 @@ func (h *Handler) handleCreateBooking(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{"booking": booking})
 }
 
+// handleListBookings godoc
+// @Summary List all bookings
+// @Tags Bookings
+// @Produce json
+// @Security BearerAuth
+// @Param page query int false "Page number"
+// @Param pageSize query int false "Page size"
+// @Success 200 {object} bookingsListResponse
+// @Failure 400 {object} errorResponse
+// @Failure 401 {object} errorResponse
+// @Failure 403 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Router /bookings/list [get]
 func (h *Handler) handleListBookings(w http.ResponseWriter, r *http.Request) {
 	page, err := parseOptionalInt(r.URL.Query().Get("page"))
 	if err != nil {
@@ -263,6 +380,16 @@ func (h *Handler) handleListBookings(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleListMyBookings godoc
+// @Summary List current user bookings
+// @Tags Bookings
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} myBookingsResponse
+// @Failure 401 {object} errorResponse
+// @Failure 403 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Router /bookings/my [get]
 func (h *Handler) handleListMyBookings(w http.ResponseWriter, r *http.Request) {
 	bookings, err := h.service.ListMyBookings(r.Context(), actorFromContext(r.Context()))
 	if err != nil {
@@ -273,6 +400,20 @@ func (h *Handler) handleListMyBookings(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"bookings": bookings})
 }
 
+// handleCancelBooking godoc
+// @Summary Cancel booking
+// @Tags Bookings
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param bookingId path string true "Booking ID"
+// @Success 200 {object} bookingResponse
+// @Failure 400 {object} errorResponse
+// @Failure 401 {object} errorResponse
+// @Failure 403 {object} errorResponse
+// @Failure 404 {object} errorResponse
+// @Failure 500 {object} errorResponse
+// @Router /bookings/{bookingId}/cancel [post]
 func (h *Handler) handleCancelBooking(w http.ResponseWriter, r *http.Request) {
 	bookingID, err := uuid.Parse(chi.URLParam(r, "bookingId"))
 	if err != nil {
