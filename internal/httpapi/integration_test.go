@@ -65,6 +65,34 @@ func TestCancelBookingFlow(t *testing.T) {
 	}
 }
 
+func TestRegisterAndLoginFlow(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 6, 9, 0, 0, 0, time.UTC)
+	env := newTestEnv(now)
+
+	userID := mustRegister(t, env, "new-user@example.com", "secret-password", "user")
+	if userID == "" {
+		t.Fatal("expected registered user id")
+	}
+
+	token := mustEmailLogin(t, env, "new-user@example.com", "secret-password")
+	if token == "" {
+		t.Fatal("expected login token")
+	}
+
+	adminToken := mustLogin(t, env, "admin")
+	_ = mustCreateRoom(t, env, adminToken)
+
+	response := struct {
+		Rooms []domain.Room `json:"rooms"`
+	}{}
+	doJSON(t, env, http.MethodGet, "/rooms/list", token, nil, &response)
+	if len(response.Rooms) != 1 {
+		t.Fatalf("expected authenticated access to rooms list, got %d rooms", len(response.Rooms))
+	}
+}
+
 type testEnv struct {
 	handler http.Handler
 }
@@ -88,6 +116,37 @@ func mustLogin(t *testing.T, env *testEnv, role string) string {
 	if response.Token == "" {
 		t.Fatal("expected token in response")
 	}
+
+	return response.Token
+}
+
+func mustRegister(t *testing.T, env *testEnv, email, password, role string) string {
+	t.Helper()
+
+	response := struct {
+		User struct {
+			ID string `json:"id"`
+		} `json:"user"`
+	}{}
+	doJSON(t, env, http.MethodPost, "/register", "", map[string]string{
+		"email":    email,
+		"password": password,
+		"role":     role,
+	}, &response)
+
+	return response.User.ID
+}
+
+func mustEmailLogin(t *testing.T, env *testEnv, email, password string) string {
+	t.Helper()
+
+	response := struct {
+		Token string `json:"token"`
+	}{}
+	doJSON(t, env, http.MethodPost, "/login", "", map[string]string{
+		"email":    email,
+		"password": password,
+	}, &response)
 
 	return response.Token
 }

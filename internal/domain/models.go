@@ -30,10 +30,11 @@ type AuthUser struct {
 }
 
 type User struct {
-	ID        uuid.UUID `json:"id"`
-	Email     string    `json:"email"`
-	Role      Role      `json:"role"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID           uuid.UUID `json:"id"`
+	Email        string    `json:"email"`
+	Role         Role      `json:"role"`
+	PasswordHash *string   `json:"-"`
+	CreatedAt    time.Time `json:"createdAt"`
 }
 
 type Room struct {
