@@ -2,8 +2,12 @@ CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY,
     email TEXT NOT NULL UNIQUE,
     role TEXT NOT NULL CHECK (role IN ('admin', 'user')),
+    password_hash TEXT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS password_hash TEXT NULL;
 
 CREATE TABLE IF NOT EXISTS rooms (
     id UUID PRIMARY KEY,

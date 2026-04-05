@@ -12,23 +12,25 @@ import (
 )
 
 type MemoryRepository struct {
-	mu        sync.Mutex
-	users     map[uuid.UUID]domain.User
-	rooms     map[uuid.UUID]domain.Room
-	schedules map[uuid.UUID]domain.Schedule
-	slots     map[uuid.UUID]domain.Slot
-	slotKeys  map[string]uuid.UUID
-	bookings  map[uuid.UUID]domain.Booking
+	mu           sync.Mutex
+	users        map[uuid.UUID]domain.User
+	usersByEmail map[string]uuid.UUID
+	rooms        map[uuid.UUID]domain.Room
+	schedules    map[uuid.UUID]domain.Schedule
+	slots        map[uuid.UUID]domain.Slot
+	slotKeys     map[string]uuid.UUID
+	bookings     map[uuid.UUID]domain.Booking
 }
 
 func NewMemoryRepository() *MemoryRepository {
 	return &MemoryRepository{
-		users:     make(map[uuid.UUID]domain.User),
-		rooms:     make(map[uuid.UUID]domain.Room),
-		schedules: make(map[uuid.UUID]domain.Schedule),
-		slots:     make(map[uuid.UUID]domain.Slot),
-		slotKeys:  make(map[string]uuid.UUID),
-		bookings:  make(map[uuid.UUID]domain.Booking),
+		users:        make(map[uuid.UUID]domain.User),
+		usersByEmail: make(map[string]uuid.UUID),
+		rooms:        make(map[uuid.UUID]domain.Room),
+		schedules:    make(map[uuid.UUID]domain.Schedule),
+		slots:        make(map[uuid.UUID]domain.Slot),
+		slotKeys:     make(map[string]uuid.UUID),
+		bookings:     make(map[uuid.UUID]domain.Booking),
 	}
 }
 
@@ -37,7 +39,34 @@ func (r *MemoryRepository) UpsertUser(_ context.Context, user domain.User) error
 	defer r.mu.Unlock()
 
 	r.users[user.ID] = user
+	r.usersByEmail[user.Email] = user.ID
 	return nil
+}
+
+func (r *MemoryRepository) CreateUser(_ context.Context, user domain.User) (domain.User, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if _, exists := r.usersByEmail[user.Email]; exists {
+		return domain.User{}, domain.ErrEmailAlreadyExists
+	}
+
+	r.users[user.ID] = user
+	r.usersByEmail[user.Email] = user.ID
+	return user, nil
+}
+
+func (r *MemoryRepository) GetUserByEmail(_ context.Context, email string) (domain.User, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	userID, ok := r.usersByEmail[email]
+	if !ok {
+		return domain.User{}, false, nil
+	}
+
+	user, ok := r.users[userID]
+	return user, ok, nil
 }
 
 func (r *MemoryRepository) ListRooms(_ context.Context) ([]domain.Room, error) {

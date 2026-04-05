@@ -42,6 +42,91 @@ func TestCreateRoom(t *testing.T) {
 	}
 }
 
+func TestCreateUser(t *testing.T) {
+	t.Parallel()
+
+	repo, mock, cleanup := newMockRepository(t)
+	defer cleanup()
+
+	passwordHash := "salt:hash"
+	user := domain.User{
+		ID:           uuid.New(),
+		Email:        "user@example.com",
+		Role:         domain.RoleUser,
+		PasswordHash: &passwordHash,
+		CreatedAt:    time.Date(2026, 4, 6, 9, 0, 0, 0, time.UTC),
+	}
+
+	rows := sqlmock.NewRows([]string{"id", "email", "role", "password_hash", "created_at"}).
+		AddRow(user.ID, user.Email, user.Role, passwordHash, user.CreatedAt)
+
+	mock.ExpectQuery(regexp.QuoteMeta("INSERT INTO users")).
+		WithArgs(user.ID, user.Email, user.Role, user.PasswordHash, user.CreatedAt.UTC()).
+		WillReturnRows(rows)
+
+	createdUser, err := repo.CreateUser(context.Background(), user)
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	if createdUser.ID != user.ID || createdUser.Email != user.Email {
+		t.Fatalf("unexpected user: %+v", createdUser)
+	}
+	if createdUser.PasswordHash == nil || *createdUser.PasswordHash != passwordHash {
+		t.Fatalf("unexpected password hash: %+v", createdUser.PasswordHash)
+	}
+}
+
+func TestCreateUserConflict(t *testing.T) {
+	t.Parallel()
+
+	repo, mock, cleanup := newMockRepository(t)
+	defer cleanup()
+
+	user := domain.User{
+		ID:        uuid.New(),
+		Email:     "user@example.com",
+		Role:      domain.RoleUser,
+		CreatedAt: time.Date(2026, 4, 6, 9, 0, 0, 0, time.UTC),
+	}
+
+	mock.ExpectQuery(regexp.QuoteMeta("INSERT INTO users")).
+		WithArgs(user.ID, user.Email, user.Role, user.PasswordHash, user.CreatedAt.UTC()).
+		WillReturnError(&pgconn.PgError{Code: "23505"})
+
+	_, err := repo.CreateUser(context.Background(), user)
+	if err != domain.ErrEmailAlreadyExists {
+		t.Fatalf("expected ErrEmailAlreadyExists, got %v", err)
+	}
+}
+
+func TestGetUserByEmail(t *testing.T) {
+	t.Parallel()
+
+	repo, mock, cleanup := newMockRepository(t)
+	defer cleanup()
+
+	userID := uuid.New()
+	passwordHash := "salt:hash"
+	rows := sqlmock.NewRows([]string{"id", "email", "role", "password_hash", "created_at"}).
+		AddRow(userID, "user@example.com", domain.RoleUser, passwordHash, time.Date(2026, 4, 6, 9, 0, 0, 0, time.UTC))
+
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT id, email, role, password_hash, created_at")).
+		WithArgs("user@example.com").
+		WillReturnRows(rows)
+
+	user, ok, err := repo.GetUserByEmail(context.Background(), "user@example.com")
+	if err != nil {
+		t.Fatalf("get user by email: %v", err)
+	}
+	if !ok || user.ID != userID {
+		t.Fatalf("unexpected user: %+v", user)
+	}
+	if user.PasswordHash == nil || *user.PasswordHash != passwordHash {
+		t.Fatalf("unexpected password hash: %+v", user.PasswordHash)
+	}
+}
+
 func TestRoomExists(t *testing.T) {
 	t.Parallel()
 
@@ -464,7 +549,7 @@ func TestUpsertUser(t *testing.T) {
 	}
 
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO users")).
-		WithArgs(user.ID, user.Email, user.Role, user.CreatedAt.UTC()).
+		WithArgs(user.ID, user.Email, user.Role, user.PasswordHash, user.CreatedAt.UTC()).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	if err := repo.UpsertUser(context.Background(), user); err != nil {

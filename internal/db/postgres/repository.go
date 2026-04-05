@@ -33,12 +33,52 @@ func RunMigrations(ctx context.Context, db *sql.DB) error {
 
 func (r *Repository) UpsertUser(ctx context.Context, user domain.User) error {
 	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO users (id, email, role, created_at)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO users (id, email, role, password_hash, created_at)
+		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (id) DO UPDATE
-		SET email = EXCLUDED.email, role = EXCLUDED.role
-	`, user.ID, user.Email, user.Role, user.CreatedAt.UTC())
+		SET email = EXCLUDED.email,
+		    role = EXCLUDED.role,
+		    password_hash = COALESCE(users.password_hash, EXCLUDED.password_hash)
+	`, user.ID, user.Email, user.Role, user.PasswordHash, user.CreatedAt.UTC())
 	return err
+}
+
+func (r *Repository) CreateUser(ctx context.Context, user domain.User) (domain.User, error) {
+	row := r.db.QueryRowContext(ctx, `
+		INSERT INTO users (id, email, role, password_hash, created_at)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, email, role, password_hash, created_at
+	`, user.ID, user.Email, user.Role, user.PasswordHash, user.CreatedAt.UTC())
+
+	createdUser, err := scanUser(row)
+	if err == nil {
+		return createdUser, nil
+	}
+
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return domain.User{}, domain.ErrEmailAlreadyExists
+	}
+
+	return domain.User{}, err
+}
+
+func (r *Repository) GetUserByEmail(ctx context.Context, email string) (domain.User, bool, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT id, email, role, password_hash, created_at
+		FROM users
+		WHERE email = $1
+	`, email)
+
+	user, err := scanUser(row)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.User{}, false, nil
+		}
+		return domain.User{}, false, err
+	}
+
+	return user, true, nil
 }
 
 func (r *Repository) ListRooms(ctx context.Context) ([]domain.Room, error) {
@@ -324,6 +364,22 @@ func scanRoom(s scanner) (domain.Room, error) {
 	}
 
 	return room, nil
+}
+
+func scanUser(s scanner) (domain.User, error) {
+	var user domain.User
+	var passwordHash sql.NullString
+
+	if err := s.Scan(&user.ID, &user.Email, &user.Role, &passwordHash, &user.CreatedAt); err != nil {
+		return domain.User{}, err
+	}
+
+	user.CreatedAt = user.CreatedAt.UTC()
+	if passwordHash.Valid {
+		user.PasswordHash = &passwordHash.String
+	}
+
+	return user, nil
 }
 
 func scanSchedule(s scanner) (domain.Schedule, error) {

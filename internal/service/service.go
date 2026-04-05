@@ -2,7 +2,12 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/base64"
 	"errors"
+	"net/mail"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,6 +27,8 @@ var (
 
 type Repository interface {
 	UpsertUser(ctx context.Context, user domain.User) error
+	CreateUser(ctx context.Context, user domain.User) (domain.User, error)
+	GetUserByEmail(ctx context.Context, email string) (domain.User, bool, error)
 	ListRooms(ctx context.Context) ([]domain.Room, error)
 	CreateRoom(ctx context.Context, room domain.Room) (domain.Room, error)
 	RoomExists(ctx context.Context, roomID uuid.UUID) (bool, error)
@@ -75,14 +82,80 @@ func (s *Service) DummyLogin(ctx context.Context, role string) (string, error) {
 	switch parsedRole {
 	case domain.RoleAdmin:
 		user.ID = adminDummyUserID
-		user.Email = "admin@example.com"
+		user.Email = "dummy-admin@room-booking.local"
 	case domain.RoleUser:
 		user.ID = userDummyUserID
-		user.Email = "user@example.com"
+		user.Email = "dummy-user@room-booking.local"
 	}
 
 	if err := s.repo.UpsertUser(ctx, user); err != nil {
 		return "", err
+	}
+
+	token, err := s.tokens.Generate(user.ID, user.Role)
+	if err != nil {
+		return "", err
+	}
+
+	return token, nil
+}
+
+func (s *Service) Register(ctx context.Context, email, password, role string) (domain.User, error) {
+	normalizedEmail, err := normalizeEmail(email)
+	if err != nil {
+		return domain.User{}, err
+	}
+
+	if strings.TrimSpace(password) == "" {
+		return domain.User{}, domain.InvalidRequest("password is required")
+	}
+
+	parsedRole := domain.Role(strings.TrimSpace(role))
+	if !parsedRole.Valid() {
+		return domain.User{}, domain.InvalidRequest("role must be either admin or user")
+	}
+
+	passwordHash, err := hashPassword(password)
+	if err != nil {
+		return domain.User{}, err
+	}
+
+	user := domain.User{
+		ID:           uuid.New(),
+		Email:        normalizedEmail,
+		Role:         parsedRole,
+		PasswordHash: &passwordHash,
+		CreatedAt:    s.now(),
+	}
+
+	createdUser, err := s.repo.CreateUser(ctx, user)
+	if err != nil {
+		if errors.Is(err, domain.ErrEmailAlreadyExists) {
+			return domain.User{}, domain.InvalidRequest("email is already taken")
+		}
+		return domain.User{}, err
+	}
+
+	createdUser.PasswordHash = nil
+	return createdUser, nil
+}
+
+func (s *Service) Login(ctx context.Context, email, password string) (string, error) {
+	normalizedEmail, err := normalizeEmail(email)
+	if err != nil {
+		return "", domain.Unauthorized("invalid email or password")
+	}
+
+	user, ok, err := s.repo.GetUserByEmail(ctx, normalizedEmail)
+	if err != nil {
+		return "", err
+	}
+	if !ok || user.PasswordHash == nil {
+		return "", domain.Unauthorized("invalid email or password")
+	}
+
+	if !verifyPassword(password, *user.PasswordHash) {
+		return "", domain.Unauthorized("invalid email or password")
 	}
 
 	token, err := s.tokens.Generate(user.ID, user.Role)
@@ -420,4 +493,47 @@ func parseClock(value string) (int, error) {
 	}
 
 	return hours*60 + minutes, nil
+}
+
+func normalizeEmail(value string) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	if normalized == "" {
+		return "", domain.InvalidRequest("email is required")
+	}
+
+	parsed, err := mail.ParseAddress(normalized)
+	if err != nil || parsed.Address != normalized {
+		return "", domain.InvalidRequest("email must be valid")
+	}
+
+	return normalized, nil
+}
+
+func hashPassword(password string) (string, error) {
+	salt := make([]byte, 16)
+	if _, err := rand.Read(salt); err != nil {
+		return "", err
+	}
+
+	sum := sha256.Sum256(append(salt, []byte(password)...))
+	return base64.RawStdEncoding.EncodeToString(salt) + ":" + base64.RawStdEncoding.EncodeToString(sum[:]), nil
+}
+
+func verifyPassword(password, encoded string) bool {
+	parts := strings.Split(encoded, ":")
+	if len(parts) != 2 {
+		return false
+	}
+
+	salt, err := base64.RawStdEncoding.DecodeString(parts[0])
+	if err != nil {
+		return false
+	}
+	expected, err := base64.RawStdEncoding.DecodeString(parts[1])
+	if err != nil {
+		return false
+	}
+
+	sum := sha256.Sum256(append(salt, []byte(password)...))
+	return subtle.ConstantTimeCompare(sum[:], expected) == 1
 }

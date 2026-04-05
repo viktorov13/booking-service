@@ -51,6 +51,81 @@ func TestCreateScheduleRejectsNonAlignedTimes(t *testing.T) {
 	}
 }
 
+func TestRegisterAndLogin(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 6, 9, 0, 0, 0, time.UTC)
+	repo := testsupport.NewMemoryRepository()
+	svc := service.New(repo, stubTokenIssuer{}, func() time.Time { return now })
+
+	user, err := svc.Register(context.Background(), "User@example.com", "secret-password", "user")
+	if err != nil {
+		t.Fatalf("register user: %v", err)
+	}
+
+	if user.Email != "user@example.com" {
+		t.Fatalf("expected normalized email, got %s", user.Email)
+	}
+	if user.Role != domain.RoleUser {
+		t.Fatalf("expected role user, got %s", user.Role)
+	}
+	if user.PasswordHash != nil {
+		t.Fatal("password hash must not be returned from register")
+	}
+
+	token, err := svc.Login(context.Background(), "USER@example.com", "secret-password")
+	if err != nil {
+		t.Fatalf("login user: %v", err)
+	}
+	if token == "" {
+		t.Fatal("expected token")
+	}
+}
+
+func TestRegisterRejectsDuplicateEmail(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 6, 9, 0, 0, 0, time.UTC)
+	repo := testsupport.NewMemoryRepository()
+	svc := service.New(repo, stubTokenIssuer{}, func() time.Time { return now })
+
+	if _, err := svc.Register(context.Background(), "user@example.com", "secret-password", "user"); err != nil {
+		t.Fatalf("first register: %v", err)
+	}
+
+	_, err := svc.Register(context.Background(), "user@example.com", "another-password", "user")
+	if err == nil {
+		t.Fatal("expected duplicate email error")
+	}
+
+	var appErr *domain.AppError
+	if !errors.As(err, &appErr) || appErr.Code != "INVALID_REQUEST" {
+		t.Fatalf("expected INVALID_REQUEST, got %v", err)
+	}
+}
+
+func TestLoginRejectsInvalidCredentials(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 4, 6, 9, 0, 0, 0, time.UTC)
+	repo := testsupport.NewMemoryRepository()
+	svc := service.New(repo, stubTokenIssuer{}, func() time.Time { return now })
+
+	if _, err := svc.Register(context.Background(), "user@example.com", "secret-password", "user"); err != nil {
+		t.Fatalf("register user: %v", err)
+	}
+
+	_, err := svc.Login(context.Background(), "user@example.com", "wrong-password")
+	if err == nil {
+		t.Fatal("expected unauthorized error")
+	}
+
+	var appErr *domain.AppError
+	if !errors.As(err, &appErr) || appErr.Code != "UNAUTHORIZED" {
+		t.Fatalf("expected UNAUTHORIZED, got %v", err)
+	}
+}
+
 func TestCreateBookingRejectsPastSlot(t *testing.T) {
 	t.Parallel()
 

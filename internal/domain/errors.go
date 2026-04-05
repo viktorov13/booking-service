@@ -3,8 +3,9 @@ package domain
 import "errors"
 
 var (
-	ErrScheduleExists    = errors.New("schedule already exists")
-	ErrSlotAlreadyBooked = errors.New("slot already booked")
+	ErrScheduleExists     = errors.New("schedule already exists")
+	ErrSlotAlreadyBooked  = errors.New("slot already booked")
+	ErrEmailAlreadyExists = errors.New("email already exists")
 )
 
 type AppError struct {

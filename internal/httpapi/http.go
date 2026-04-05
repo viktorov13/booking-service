@@ -36,6 +36,8 @@ func NewHandler(service *service.Service, tokens tokenParser) http.Handler {
 	router.Use(middleware.Recoverer)
 
 	router.Get("/_info", handler.handleInfo)
+	router.Post("/register", handler.handleRegister)
+	router.Post("/login", handler.handleLogin)
 	router.Post("/dummyLogin", handler.handleDummyLogin)
 
 	router.Group(func(r chi.Router) {
@@ -68,6 +70,47 @@ func (h *Handler) handleDummyLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token, err := h.service.DummyLogin(r.Context(), request.Role)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"token": token})
+}
+
+func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		Role     string `json:"role"`
+	}
+
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, err)
+		return
+	}
+
+	user, err := h.service.Register(r.Context(), request.Email, request.Password, request.Role)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]any{"user": user})
+}
+
+func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, err)
+		return
+	}
+
+	token, err := h.service.Login(r.Context(), request.Email, request.Password)
 	if err != nil {
 		writeError(w, err)
 		return
